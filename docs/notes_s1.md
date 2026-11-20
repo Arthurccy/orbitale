@@ -2,6 +2,7 @@
 ## Notes d'observation et réponses aux questions (Livrable S1)
 
 **Projet :** Orbitale  
+**Binôme :** Arthur COURCHAY — Victor HABERT  
 **Module :** M2 Web Services — Fondamentaux REST et styles d'API  
 **Date :** 20 novembre 2026  
 

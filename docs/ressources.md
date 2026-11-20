@@ -2,7 +2,7 @@
 
 **Projet :** API RESTful de billetterie en ligne et de contrôle d'accès *Orbitale*  
 **Module :** M2 Web Services — Séance 1 : Fondamentaux REST  
-**Binôme :** NOM Prénom — NOM Prénom *(à compléter)*  
+**Binôme :** Arthur COURCHAY — Victor HABERT  
 **Date :** 20 novembre 2026  
 **Objectif architectural :** Niveau 2 de maturité de Richardson (avec prémisses niveau 3)  
 
