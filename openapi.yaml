@@ -121,7 +121,7 @@ paths:
           description: Événement créé avec succès
           headers:
             Location:
-              $ref: '#/components/headers/Location'
+              $ref: '#/components/headers/EventLocation'
           content:
             application/json:
               schema:
@@ -238,7 +238,11 @@ paths:
       tags: [Commandes]
       operationId: createOrder
       summary: Créer une commande de billets
-      description: Réserve des places et génère la commande avec ses billets associés.
+      description: |
+        Réserve des places et génère la commande avec ses billets associés.
+        Si l'événement est complet (places restantes insuffisantes), le serveur répond 409 Conflict.
+        Si l'eventId du corps ne correspond à aucun événement, le serveur répond 422 (la ressource
+        ciblée par l'URI, /v1/orders, existe bien : ce n'est donc pas un 404).
       requestBody:
         required: true
         content:
@@ -254,7 +258,7 @@ paths:
           description: Commande créée avec succès
           headers:
             Location:
-              $ref: '#/components/headers/Location'
+              $ref: '#/components/headers/OrderLocation'
           content:
             application/json:
               schema:
@@ -271,7 +275,7 @@ paths:
                     orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
                     eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
                     code: ORB-A1B2C3D4E5F6
-                    holderName: Alice Martin
+                    holderName: null
                     seatNumber: null
                     price: 3900
                     status: valid
@@ -281,7 +285,7 @@ paths:
                     orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
                     eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
                     code: ORB-B2C3D4E5F6A1
-                    holderName: Invité Alice
+                    holderName: null
                     seatNumber: null
                     price: 3900
                     status: valid
@@ -290,8 +294,6 @@ paths:
                 createdAt: '2026-11-20T11:20:00.000Z'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
         '422':
@@ -324,7 +326,7 @@ paths:
                     orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
                     eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
                     code: ORB-A1B2C3D4E5F6
-                    holderName: Alice Martin
+                    holderName: null
                     seatNumber: null
                     price: 3900
                     status: valid
@@ -333,6 +335,57 @@ paths:
                 createdAt: '2026-11-20T11:20:00.000Z'
         '404':
           $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Commandes]
+      operationId: updateOrder
+      summary: Modifier l'état d'une commande (annulation)
+      description: |
+        Annule une commande sans verbe dans l'URI : le client transmet la transition d'état
+        {"status": "cancelled"}. Les billets associés passent au statut cancelled.
+        Répond 409 si la commande n'est plus annulable (déjà annulée ou événement passé).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPatch'
+            example:
+              status: cancelled
+      responses:
+        '200':
+          description: Commande mise à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                buyerEmail: alice@example.com
+                totalAmount: 7800
+                currency: EUR
+                status: cancelled
+                tickets:
+                  - id: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+                    orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                    eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                    code: ORB-A1B2C3D4E5F6
+                    holderName: null
+                    seatNumber: null
+                    price: 3900
+                    status: cancelled
+                    usedAt: null
+                    createdAt: '2026-11-20T11:20:00.000Z'
+                createdAt: '2026-11-20T11:20:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Validation'
 
   /v1/orders/{orderId}/tickets:
     parameters:
@@ -361,7 +414,7 @@ paths:
                     orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
                     eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
                     code: ORB-A1B2C3D4E5F6
-                    holderName: Alice Martin
+                    holderName: null
                     seatNumber: null
                     price: 3900
                     status: valid
@@ -390,7 +443,7 @@ paths:
                 orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
                 eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
                 code: ORB-A1B2C3D4E5F6
-                holderName: Alice Martin
+                holderName: null
                 seatNumber: null
                 price: 3900
                 status: valid
@@ -448,7 +501,11 @@ paths:
       tags: [Scans]
       operationId: createScan
       summary: Enregistrer le scan d'un billet par une borne
-      description: Valide l'accès physique à l'entrée d'une salle et historise le contrôle.
+      description: |
+        Valide l'accès physique à l'entrée d'une salle et historise le contrôle.
+        Chaque passage crée une trace, y compris un refus : un billet déjà utilisé, annulé ou
+        inconnu répond donc 201 avec result = denied et le motif dans rejectionReason
+        (already_used, cancelled, invalid_ticket), et non 409 ou 404.
       requestBody:
         required: true
         content:
@@ -464,7 +521,7 @@ paths:
           description: Scan enregistré avec succès (accès accordé ou refusé)
           headers:
             Location:
-              $ref: '#/components/headers/Location'
+              $ref: '#/components/headers/ScanLocation'
           content:
             application/json:
               schema:
@@ -479,10 +536,6 @@ paths:
                 rejectionReason: null
         '400':
           $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Validation'
 
@@ -514,11 +567,21 @@ components:
         example: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
 
   headers:
-    Location:
-      description: URI absolue ou relative de la ressource nouvellement créée
+    EventLocation:
+      description: URI de l'événement nouvellement créé
       schema:
         type: string
         example: /v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+    OrderLocation:
+      description: URI de la commande nouvellement créée
+      schema:
+        type: string
+        example: /v1/orders/a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+    ScanLocation:
+      description: URI du scan nouvellement enregistré
+      schema:
+        type: string
+        example: /v1/scans/8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e
 
   responses:
     BadRequest:
@@ -548,7 +611,7 @@ components:
             instance: /v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
 
     Conflict:
-      description: "L'état courant de la ressource interdit l'opération (ex: complet, déjà supprimé, fraude)"
+      description: "L'état courant de la ressource interdit l'opération (ex: événement complet, commande déjà annulée, événement avec billets vendus)"
       content:
         application/problem+json:
           schema:
@@ -557,7 +620,7 @@ components:
             type: https://api.orbitale.test/problems/conflict
             title: Conflit d'état métier
             status: 409
-            detail: L'événement est complet ou le billet a déjà été composté.
+            detail: L'événement est complet (places restantes insuffisantes pour la quantité demandée).
             instance: /v1/orders
 
     Validation:
@@ -667,8 +730,8 @@ components:
           example: 5874
         price:
           type: integer
-          minimum: 0
-          description: Prix unitaire en centimes d'euros (3900 = 39,00 €)
+          minimum: 1
+          description: Prix unitaire en centimes d'euros, entier strictement positif (3900 = 39,00 €)
           example: 3900
         currency:
           type: string
@@ -721,8 +784,8 @@ components:
           example: 6000
         price:
           type: integer
-          minimum: 0
-          description: Prix en centimes (3900 = 39,00 €)
+          minimum: 1
+          description: Prix en centimes, entier strictement positif (3900 = 39,00 €)
           example: 3900
         currency:
           type: string
@@ -762,7 +825,10 @@ components:
           maximum: 100000
         price:
           type: integer
-          minimum: 0
+          minimum: 1
+        currency:
+          type: string
+          enum: [EUR]
         status:
           type: string
           enum: [draft, published, cancelled]
@@ -793,10 +859,11 @@ components:
           description: Code unique imprimé sur le QR code (préfixé par ORB- suivi de 12 caractères hexadécimaux majuscules)
           example: ORB-A1B2C3D4E5F6
         holderName:
-          type: string
+          type: [string, 'null']
           minLength: 2
           maxLength: 100
-          example: Alice Martin
+          description: Nom du porteur, null tant qu'il n'a pas été renseigné (OrderCreate ne le transmet pas)
+          example: null
         seatNumber:
           type: [string, 'null']
           example: null
@@ -883,6 +950,17 @@ components:
           format: date-time
           readOnly: true
           example: '2026-11-20T11:20:00.000Z'
+
+    OrderPatch:
+      type: object
+      description: Transition d'état d'une commande ; seule l'annulation est exposée au client
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [cancelled]
+          example: cancelled
 
     ScanCreate:
       type: object

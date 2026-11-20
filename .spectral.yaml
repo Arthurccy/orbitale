@@ -38,7 +38,10 @@ rules:
       field: "@key"
       function: pattern
       functionOptions:
-        notMatch: "/(create|get|update|delete|validate|cancel|list|add|remove)/i"
+        # Un segment qui COMMENCE par un verbe suivi d'une majuscule, d'un tiret, d'un "/" ou de la fin
+        # (/v1/createEvent, /v1/orders/{id}/cancel, /v1/get-orders) ; évite les faux positifs
+        # comme /v1/addresses, /v1/listings ou /v1/budgets.
+        notMatch: "/(create|get|update|delete|validate|cancel|list|add|remove)(?![a-z])"
 
   # Règle 4 (Bonus TP S2) : Tout paramètre de chemin doit se terminer par 'Id'
   orbitale-param-id:

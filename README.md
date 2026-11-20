@@ -41,7 +41,7 @@ orbitale/
 
 ### Séance 2 — Design-First avec OpenAPI
 - [📜 `openapi.yaml`](openapi.yaml) :
-  - Contrat complet en **OpenAPI 3.1.0** couvrant l'ensemble des opérations (Événements, Commandes, Billets, Scans).
+  - Contrat complet en **OpenAPI 3.1.0** couvrant l'ensemble des opérations du tableau S1 (Événements, Commandes dont l'annulation via `PATCH /v1/orders/{orderId}`, Billets, Scans).
   - Principe *« Lire n'est pas écrire »* : séparation stricte de la représentation lue (`Event`) et des schémas d'écriture (`EventCreate`, `EventPatch`) avec `additionalProperties: false`.
   - Champs calculés et horodatages en `readOnly: true`.
   - Montants financiers exprimés en centimes entiers (`3900` pour 39,00 €).
@@ -49,7 +49,7 @@ orbitale/
   - Code de billet sécurisé validé par regex (`pattern: '^ORB-[0-9A-F]{12}$'`).
 - [⚙️ `.spectral.yaml`](.spectral.yaml) :
   - Règles de style et de gouvernance d'API.
-  - **Règle maison `orbitale-pas-de-verbe`** : Interdit tout verbe d'action dans les chemins d'URI (`/createEvent`, `/getOrders`, etc.).
+  - **Règle maison `orbitale-pas-de-verbe`** : Interdit tout segment d'URI qui commence par un verbe d'action (`/v1/createEvent`, `/v1/orders/{id}/cancel`, `/v1/get-orders`), sans faux positif sur `/v1/addresses` ou `/v1/listings`.
   - **Règle bonus `orbitale-param-id`** : Impose que tout paramètre de chemin se termine par `Id` (`eventId`, `orderId`, `ticketId`).
 - [🖼️ `docs/mock.png`](docs/mock.png) :
   - Capture attestant de la simulation du serveur mock Prism sur les cas `200 OK`, `201 Created` (avec `Location`), `422 Unprocessable Entity` (rejet strict) et `404 Not Found`.
@@ -93,6 +93,12 @@ curl -i -X POST http://localhost:4010/v1/events \
 
 # 4. Forcer un cas d'erreur 404 (404 Not Found au format RFC 9457)
 curl -i -H "Prefer: code=404" http://localhost:4010/v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+
+# 5. Annuler une commande sans verbe dans l'URI (200 OK)
+curl -i -X PATCH http://localhost:4010/v1/orders/a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d   -H "Content-Type: application/json" -d '{"status":"cancelled"}'
+
+# 6. Événement complet à la commande (409 Conflict)
+curl -i -X POST -H "Prefer: code=409" http://localhost:4010/v1/orders   -H "Content-Type: application/json"   -d '{"eventId":"6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23","quantity":2,"buyerEmail":"alice@example.com"}'
 ```
 
 ---
