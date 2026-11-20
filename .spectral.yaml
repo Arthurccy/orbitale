@@ -1,0 +1,54 @@
+# Règles de style du contrat Orbitale : npx --yes @stoplight/spectral-cli@6 lint openapi.yaml
+extends: ["spectral:oas"]
+
+rules:
+  # Règle 1 : Chaque opération a un identifiant unique stable
+  orbitale-operation-id:
+    description: Chaque opération doit avoir un operationId
+    severity: error
+    given: "$.paths[*][get,post,put,patch,delete]"
+    then:
+      field: operationId
+      function: truthy
+
+  # Règle 2 : Toute erreur 4xx/5xx est décrite en application/problem+json (RFC 9457)
+  orbitale-erreurs-problem-json:
+    description: Toute réponse 4xx/5xx doit être décrite en application/problem+json
+    message: "Réponse d'erreur sans contenu application/problem+json (RFC 9457)"
+    severity: error
+    given: "$.paths[*][*].responses[?(@property.match(/^[45]/))]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [content]
+          properties:
+            content:
+              type: object
+              required: ["application/problem+json"]
+
+  # Règle 3 (Maison TP S2) : Pas de verbe dans les chemins d'URI
+  orbitale-pas-de-verbe:
+    description: "Un chemin d'URI ne doit contenir aucun verbe (create, get, update, delete, validate, cancel...)"
+    message: "Le chemin d'URI contient un verbe d'action interdit dans une API RESTful"
+    severity: error
+    given: "$.paths"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        notMatch: "/(create|get|update|delete|validate|cancel|list|add|remove)/i"
+
+  # Règle 4 (Bonus TP S2) : Tout paramètre de chemin doit se terminer par 'Id'
+  orbitale-param-id:
+    description: "Tout paramètre de chemin doit se terminer par 'Id' (ex: eventId, orderId)"
+    message: "Le paramètre de chemin doit se terminer par 'Id'"
+    severity: warn
+    given: "$.paths[*].parameters[?(@.in == 'path')].name"
+    then:
+      function: pattern
+      functionOptions:
+        match: "Id$"
+
+  operation-description: off

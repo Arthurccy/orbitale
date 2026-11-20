@@ -1,0 +1,940 @@
+openapi: 3.1.0
+info:
+  title: API Orbitale
+  version: 1.0.0
+  summary: Plateforme de billetterie et de contrôle d'accès
+  description: |
+    Contrat d'API REST de la plateforme Orbitale conçu selon l'approche Design-First.
+    Toutes les erreurs suivent la spécification RFC 9457 (application/problem+json).
+    Les montants financiers sont exprimés en centimes d'euros entiers.
+  contact:
+    name: Équipe API Orbitale
+    email: api@orbitale.test
+servers:
+  - url: http://localhost:3000
+    description: Serveur de développement local
+  - url: http://localhost:4010
+    description: Serveur de simulation Mock Prism
+
+tags:
+  - name: Événements
+    description: Gestion et catalogue des événements culturels et concerts
+  - name: Commandes
+    description: Gestion des commandes de billets par les acheteurs
+  - name: Billets
+    description: Consultation des titres d'accès nominatifs
+  - name: Scans
+    description: Contrôle d'accès physique aux portes d'entrée par les bornes
+
+paths:
+  /v1/events:
+    get:
+      tags: [Événements]
+      operationId: listEvents
+      summary: Lister les événements du catalogue
+      description: Renvoie la collection paginée des événements avec filtres optionnels.
+      parameters:
+        - name: status
+          in: query
+          description: Filtrer par statut de publication
+          required: false
+          schema:
+            type: string
+            enum: [draft, published, cancelled]
+        - name: venue
+          in: query
+          description: Filtrer par lieu ou salle
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Numéro de la page demandée
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Nombre d'éléments par page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Liste paginée des événements
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+              example:
+                data:
+                  - id: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                    title: Nuit électro
+                    description: Grand festival électro de printemps
+                    venue: Le Zénith, Paris
+                    startsAt: '2027-03-19T20:00:00.000Z'
+                    capacity: 6000
+                    remaining: 5874
+                    price: 3900
+                    currency: EUR
+                    status: published
+                    createdAt: '2026-11-20T10:00:00.000Z'
+                    updatedAt: '2026-11-20T10:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Validation'
+
+    post:
+      tags: [Événements]
+      operationId: createEvent
+      summary: Créer un nouvel événement
+      description: Permet à un organisateur de publier un nouvel événement.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCreate'
+            example:
+              title: Nuit électro
+              description: Grand festival électro de printemps
+              venue: Le Zénith, Paris
+              startsAt: '2027-03-19T20:00:00.000Z'
+              capacity: 6000
+              price: 3900
+              currency: EUR
+              status: published
+      responses:
+        '201':
+          description: Événement créé avec succès
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+              example:
+                id: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                title: Nuit électro
+                description: Grand festival électro de printemps
+                venue: Le Zénith, Paris
+                startsAt: '2027-03-19T20:00:00.000Z'
+                capacity: 6000
+                remaining: 6000
+                price: 3900
+                currency: EUR
+                status: published
+                createdAt: '2026-11-20T11:00:00.000Z'
+                updatedAt: '2026-11-20T11:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Validation'
+
+  /v1/events/{eventId}:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      tags: [Événements]
+      operationId: getEvent
+      summary: Lire un événement par son identifiant
+      description: Renvoie la fiche détaillée d'un événement.
+      responses:
+        '200':
+          description: L'événement demandé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+              example:
+                id: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                title: Nuit électro
+                description: null
+                venue: Le Zénith, Paris
+                startsAt: '2027-03-19T20:00:00.000Z'
+                capacity: 6000
+                remaining: 5874
+                price: 3900
+                currency: EUR
+                status: published
+                createdAt: '2026-11-20T10:00:00.000Z'
+                updatedAt: '2026-11-20T10:00:00.000Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Événements]
+      operationId: updateEvent
+      summary: Modifier partiellement un événement
+      description: Met à jour un ou plusieurs champs d'un événement existant sans écraser le reste.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventPatch'
+            example:
+              title: Nuit électro 2027 (Édition spéciale)
+              capacity: 6500
+      responses:
+        '200':
+          description: Événement mis à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+              example:
+                id: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                title: Nuit électro 2027 (Édition spéciale)
+                description: null
+                venue: Le Zénith, Paris
+                startsAt: '2027-03-19T20:00:00.000Z'
+                capacity: 6500
+                remaining: 6374
+                price: 3900
+                currency: EUR
+                status: published
+                createdAt: '2026-11-20T10:00:00.000Z'
+                updatedAt: '2026-11-20T11:15:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Validation'
+
+    delete:
+      tags: [Événements]
+      operationId: deleteEvent
+      summary: Supprimer un événement
+      description: Supprime un événement s'il n'a fait l'objet d'aucune vente de billet.
+      responses:
+        '204':
+          description: Événement supprimé avec succès (aucun corps renvoyé)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/orders:
+    post:
+      tags: [Commandes]
+      operationId: createOrder
+      summary: Créer une commande de billets
+      description: Réserve des places et génère la commande avec ses billets associés.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+            example:
+              eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+              quantity: 2
+              buyerEmail: alice@example.com
+      responses:
+        '201':
+          description: Commande créée avec succès
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                buyerEmail: alice@example.com
+                totalAmount: 7800
+                currency: EUR
+                status: paid
+                tickets:
+                  - id: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+                    orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                    eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                    code: ORB-A1B2C3D4E5F6
+                    holderName: Alice Martin
+                    seatNumber: null
+                    price: 3900
+                    status: valid
+                    usedAt: null
+                    createdAt: '2026-11-20T11:20:00.000Z'
+                  - id: e5f6a1b2-c3d4-4e5f-7a8b-9c0d1e2f3a4b
+                    orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                    eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                    code: ORB-B2C3D4E5F6A1
+                    holderName: Invité Alice
+                    seatNumber: null
+                    price: 3900
+                    status: valid
+                    usedAt: null
+                    createdAt: '2026-11-20T11:20:00.000Z'
+                createdAt: '2026-11-20T11:20:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Validation'
+
+  /v1/orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Commandes]
+      operationId: getOrder
+      summary: Consulter une commande
+      description: Renvoie les détails complets d'une commande.
+      responses:
+        '200':
+          description: Détails de la commande
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                buyerEmail: alice@example.com
+                totalAmount: 7800
+                currency: EUR
+                status: paid
+                tickets:
+                  - id: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+                    orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                    eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                    code: ORB-A1B2C3D4E5F6
+                    holderName: Alice Martin
+                    seatNumber: null
+                    price: 3900
+                    status: valid
+                    usedAt: null
+                    createdAt: '2026-11-20T11:20:00.000Z'
+                createdAt: '2026-11-20T11:20:00.000Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/orders/{orderId}/tickets:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Commandes]
+      operationId: listOrderTickets
+      summary: Lister les billets d'une commande
+      description: Sous-ressource retournant la liste de tous les billets générés pour cette commande.
+      responses:
+        '200':
+          description: Billets de la commande
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ticket'
+              example:
+                data:
+                  - id: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+                    orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                    eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                    code: ORB-A1B2C3D4E5F6
+                    holderName: Alice Martin
+                    seatNumber: null
+                    price: 3900
+                    status: valid
+                    usedAt: null
+                    createdAt: '2026-11-20T11:20:00.000Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/tickets/{ticketId}:
+    parameters:
+      - $ref: '#/components/parameters/TicketId'
+    get:
+      tags: [Billets]
+      operationId: getTicket
+      summary: Consulter un billet individuel
+      description: Affiche les informations complètes d'un billet pour présentation au contrôle d'accès.
+      responses:
+        '200':
+          description: Détails du billet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+              example:
+                id: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+                orderId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                eventId: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+                code: ORB-A1B2C3D4E5F6
+                holderName: Alice Martin
+                seatNumber: null
+                price: 3900
+                status: valid
+                usedAt: null
+                createdAt: '2026-11-20T11:20:00.000Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/scans:
+    get:
+      tags: [Scans]
+      operationId: listScans
+      summary: Consulter l'historique des scans de contrôle d'accès
+      description: Utilisé par les superviseurs et organisateurs pour suivre le remplissage de la salle.
+      parameters:
+        - name: gate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: result
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [granted, denied]
+      responses:
+        '200':
+          description: Liste des pointages enregistrés
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Scan'
+              example:
+                data:
+                  - id: 8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e
+                    ticketId: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+                    scannerId: BORNE-PORTE-NORD-01
+                    gate: Porte A
+                    scannedAt: '2027-03-19T19:45:12.000Z'
+                    result: granted
+                    rejectionReason: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Validation'
+
+    post:
+      tags: [Scans]
+      operationId: createScan
+      summary: Enregistrer le scan d'un billet par une borne
+      description: Valide l'accès physique à l'entrée d'une salle et historise le contrôle.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanCreate'
+            example:
+              ticketId: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+              scannerId: BORNE-PORTE-NORD-01
+              gate: Porte A
+      responses:
+        '201':
+          description: Scan enregistré avec succès (accès accordé ou refusé)
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scan'
+              example:
+                id: 8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e
+                ticketId: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+                scannerId: BORNE-PORTE-NORD-01
+                gate: Porte A
+                scannedAt: '2027-03-19T19:45:12.000Z'
+                result: granted
+                rejectionReason: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Validation'
+
+components:
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+    TicketId:
+      name: ticketId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+
+  headers:
+    Location:
+      description: URI absolue ou relative de la ressource nouvellement créée
+      schema:
+        type: string
+        example: /v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+
+  responses:
+    BadRequest:
+      description: Requête syntaxiquement invalide ou JSON mal formé (RFC 9457)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://api.orbitale.test/problems/bad-request
+            title: Requête syntaxiquement invalide
+            status: 400
+            detail: Le corps JSON fourni est illisible ou corrompu.
+            instance: /v1/events
+
+    NotFound:
+      description: La ressource demandée n'existe pas (RFC 9457)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://api.orbitale.test/problems/not-found
+            title: Ressource introuvable
+            status: 404
+            detail: Aucun élément ne correspond à l'identifiant spécifié.
+            instance: /v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+
+    Conflict:
+      description: "L'état courant de la ressource interdit l'opération (ex: complet, déjà supprimé, fraude)"
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://api.orbitale.test/problems/conflict
+            title: Conflit d'état métier
+            status: 409
+            detail: L'événement est complet ou le billet a déjà été composté.
+            instance: /v1/orders
+
+    Validation:
+      description: Le corps ou les paramètres ne respectent pas le contrat de validation (RFC 9457)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          example:
+            type: https://api.orbitale.test/problems/validation
+            title: Erreur de validation des données
+            status: 422
+            detail: Un ou plusieurs champs ne respectent pas les contraintes spécifiées.
+            instance: /v1/events
+            errors:
+              - field: capacity
+                message: La capacité doit être comprise entre 1 et 100 000.
+
+  schemas:
+    Problem:
+      type: object
+      description: Modèle générique d'erreur conforme à la norme RFC 9457 (Problem Details for HTTP APIs)
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI identifiant de façon stable le type d'erreur
+          example: https://api.orbitale.test/problems/not-found
+        title:
+          type: string
+          description: Résumé court de l'erreur lisible par un humain
+          example: Ressource introuvable
+        status:
+          type: integer
+          description: Code de statut HTTP associé
+          example: 404
+        detail:
+          type: string
+          description: Explication humaine détaillée de l'incident spécifique
+          example: L'événement demandé n'existe pas ou a été définitivement supprimé.
+        instance:
+          type: string
+          description: URI de la requête ayant engendré l'erreur
+          example: /v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+
+    ValidationProblem:
+      description: Erreur 422 enrichie de la liste détaillée des champs invalides
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: array
+              description: Liste des infractions de validation
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                    description: Nom de la propriété erronée
+                    example: capacity
+                  message:
+                    type: string
+                    description: Règle de validation violée
+                    example: Doit être supérieur ou égal à 1
+
+    Event:
+      type: object
+      description: Représentation complète d'un événement exposé en lecture
+      required: [id, title, venue, startsAt, capacity, remaining, price, currency, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: Nuit électro
+        description:
+          type: [string, 'null']
+          maxLength: 2000
+          example: Grand festival de musique électronique
+        venue:
+          type: string
+          minLength: 2
+          maxLength: 120
+          example: Le Zénith, Paris
+        startsAt:
+          type: string
+          format: date-time
+          example: '2027-03-19T20:00:00.000Z'
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          example: 6000
+        remaining:
+          type: integer
+          readOnly: true
+          description: Nombre de places encore en vente (calculé par le serveur)
+          example: 5874
+        price:
+          type: integer
+          minimum: 0
+          description: Prix unitaire en centimes d'euros (3900 = 39,00 €)
+          example: 3900
+        currency:
+          type: string
+          enum: [EUR]
+          default: EUR
+          example: EUR
+        status:
+          type: string
+          enum: [draft, published, cancelled]
+          example: published
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-11-20T10:00:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-11-20T10:00:00.000Z'
+
+    EventCreate:
+      type: object
+      description: Schéma strict de création d'événement envoyé par le client
+      additionalProperties: false
+      required: [title, venue, startsAt, capacity, price]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: Nuit électro
+        description:
+          type: [string, 'null']
+          maxLength: 2000
+          example: null
+        venue:
+          type: string
+          minLength: 2
+          maxLength: 120
+          example: Le Zénith, Paris
+        startsAt:
+          type: string
+          format: date-time
+          example: '2027-03-19T20:00:00.000Z'
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          example: 6000
+        price:
+          type: integer
+          minimum: 0
+          description: Prix en centimes (3900 = 39,00 €)
+          example: 3900
+        currency:
+          type: string
+          enum: [EUR]
+          default: EUR
+          example: EUR
+        status:
+          type: string
+          enum: [draft, published]
+          default: draft
+          example: published
+
+    EventPatch:
+      type: object
+      description: Schéma de modification partielle d'événement
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: Nuit électro 2027
+        description:
+          type: [string, 'null']
+          maxLength: 2000
+        venue:
+          type: string
+          minLength: 2
+          maxLength: 120
+        startsAt:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        price:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [draft, published, cancelled]
+
+    Ticket:
+      type: object
+      description: Titre nominatif individuel donnant droit à l'entrée
+      required: [id, orderId, eventId, code, status, price, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+        orderId:
+          type: string
+          format: uuid
+          readOnly: true
+          example: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+        eventId:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+        code:
+          type: string
+          pattern: '^ORB-[0-9A-F]{12}$'
+          description: Code unique imprimé sur le QR code (préfixé par ORB- suivi de 12 caractères hexadécimaux majuscules)
+          example: ORB-A1B2C3D4E5F6
+        holderName:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Alice Martin
+        seatNumber:
+          type: [string, 'null']
+          example: null
+        price:
+          type: integer
+          minimum: 0
+          description: Prix en centimes
+          example: 3900
+        status:
+          type: string
+          enum: [valid, used, cancelled]
+          example: valid
+        usedAt:
+          type: [string, 'null']
+          format: date-time
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-11-20T11:20:00.000Z'
+
+    OrderCreate:
+      type: object
+      description: Commande passée par un acheteur
+      additionalProperties: false
+      required: [eventId, quantity, buyerEmail]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          example: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 10
+          example: 2
+        buyerEmail:
+          type: string
+          format: email
+          example: alice@example.com
+
+    Order:
+      type: object
+      description: Représentation complète d'une commande et de ses billets
+      required: [id, eventId, buyerEmail, totalAmount, currency, status, tickets, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+        eventId:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+        buyerEmail:
+          type: string
+          format: email
+          example: alice@example.com
+        totalAmount:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Montant total payé en centimes (calculé par le serveur)
+          example: 7800
+        currency:
+          type: string
+          enum: [EUR]
+          default: EUR
+          example: EUR
+        status:
+          type: string
+          enum: [pending, paid, cancelled]
+          example: paid
+        tickets:
+          type: array
+          description: Liste des billets émis
+          items:
+            $ref: '#/components/schemas/Ticket'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-11-20T11:20:00.000Z'
+
+    ScanCreate:
+      type: object
+      description: Données transmises par une borne lors du contrôle physique d'un billet
+      additionalProperties: false
+      required: [ticketId, scannerId, gate]
+      properties:
+        ticketId:
+          type: string
+          format: uuid
+          example: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+        scannerId:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: BORNE-PORTE-NORD-01
+        gate:
+          type: string
+          minLength: 1
+          maxLength: 20
+          example: Porte A
+
+    Scan:
+      type: object
+      description: Trace immuable d'un pointage physique d'entrée
+      required: [id, ticketId, scannerId, gate, scannedAt, result]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e
+        ticketId:
+          type: string
+          format: uuid
+          example: d4e5f6a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a
+        scannerId:
+          type: string
+          example: BORNE-PORTE-NORD-01
+        gate:
+          type: string
+          example: Porte A
+        scannedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2027-03-19T19:45:12.000Z'
+        result:
+          type: string
+          enum: [granted, denied]
+          example: granted
+        rejectionReason:
+          type: [string, 'null']
+          enum: [already_used, invalid_ticket, cancelled, null]
+          example: null
