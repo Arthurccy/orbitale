@@ -1,0 +1,58 @@
+$ curl -si http://localhost:4010/v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: *
+Content-type: application/json
+Content-Length: 316
+Date: Fri, 20 Nov 2026 14:50:23 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"id":"6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23","title":"Nuit électro","description":null,"venue":"Le Zénith, Paris","startsAt":"2027-03-19T20:00:00.000Z","capacity":6000,"remaining":5874,"price":3900,"currency":"EUR","status":"published","createdAt":"2026-11-20T10:00:00.000Z","updatedAt":"2026-11-20T10:00:00.000Z"}
+
+$ curl -si -X POST http://localhost:4010/v1/events -H 'Content-Type: application/json' -d '{"title":"Nuit électro","venue":"Le Zénith, Paris","startsAt":"2027-03-19T20:00:00.000Z","capacity":6000,"price":3900,"status":"published"}'
+HTTP/1.1 201 Created
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: *
+Location: /v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+Content-type: application/json
+Content-Length: 350
+Date: Fri, 20 Nov 2026 14:50:23 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"id":"6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23","title":"Nuit électro","description":"Grand festival électro de printemps","venue":"Le Zénith, Paris","startsAt":"2027-03-19T20:00:00.000Z","capacity":6000,"remaining":6000,"price":3900,"currency":"EUR","status":"published","createdAt":"2026-11-20T11:00:00.000Z","updatedAt":"2026-11-20T11:00:00.000Z"}
+
+$ curl -si -X POST http://localhost:4010/v1/events -H 'Content-Type: application/json' -d '{"title":"x"}'
+HTTP/1.1 422 Unprocessable Entity
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: *
+sl-violations: [{"location":["request","body"],"severity":"Error","code":"required","message":"Request body must have required property 'venue'"},{"location":["request","body"],"severity":"Error","code":"required","message":"Request body must have required property 'startsAt'"},{"location":["request","body"],"severity":"Error","code":"required","message":"Request body must have required property 'capacity'"},{"location":["request","body"],"severity":"Error","code":"required","message":"Request body must have required property 'price'"},{"location":["request","body","title"],"severity":"Error","code":"minLength","message":"Request body property title must NOT have fewer than 3 characters"}]
+Content-type: application/problem+json
+Content-Length: 316
+Date: Fri, 20 Nov 2026 14:50:23 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"type":"https://api.orbitale.test/problems/validation","title":"Erreur de validation des données","status":422,"detail":"Un ou plusieurs champs ne respectent pas les contraintes spécifiées.","instance":"/v1/events","errors":[{"field":"capacity","message":"La capacité doit être comprise entre 1 et 100 000."}]}
+
+$ curl -si -H 'Prefer: code=404' http://localhost:4010/v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23
+HTTP/1.1 404 Not Found
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: *
+Content-type: application/problem+json
+Content-Length: 231
+Date: Fri, 20 Nov 2026 14:50:23 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"type":"https://api.orbitale.test/problems/not-found","title":"Ressource introuvable","status":404,"detail":"Aucun élément ne correspond à l'identifiant spécifié.","instance":"/v1/events/6f1c2b8e-4f3a-4e8b-9a51-2d7c0f9e1a23"}
+

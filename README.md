@@ -52,7 +52,8 @@ orbitale/
   - **Règle maison `orbitale-pas-de-verbe`** : Interdit tout segment d'URI qui commence par un verbe d'action (`/v1/createEvent`, `/v1/orders/{id}/cancel`, `/v1/get-orders`), sans faux positif sur `/v1/addresses` ou `/v1/listings`.
   - **Règle bonus `orbitale-param-id`** : Impose que tout paramètre de chemin se termine par `Id` (`eventId`, `orderId`, `ticketId`).
 - [🖼️ `docs/mock.png`](docs/mock.png) :
-  - Capture attestant de la simulation du serveur mock Prism sur les cas `200 OK`, `201 Created` (avec `Location`), `422 Unprocessable Entity` (rejet strict) et `404 Not Found`.
+  - Rendu de la sortie réelle du mock Prism sur les cas `200 OK`, `201 Created` (avec `Location`), `422 Unprocessable Entity` (rejet strict) et `404 Not Found`.
+  - Sortie brute correspondante, non retouchée : [`docs/mock_transcript.txt`](docs/mock_transcript.txt).
 
 ---
 
