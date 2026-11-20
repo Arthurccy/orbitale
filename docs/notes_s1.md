@@ -31,7 +31,8 @@ curl.exe -v https://api.github.com/repos/nodejs/node -o NUL
   ```http
   HTTP/1.1 200 OK
   ```
-- **Version HTTP utilisée :** `HTTP/1.1` (négociée via TLS ALPN).
+- **Version HTTP utilisée :** `HTTP/1.1`, négociée via TLS ALPN (`* ALPN: curl offers http/1.1` puis `server accepted http/1.1`).  
+  Ce n'est pas un choix de GitHub, qui accepte HTTP/2 : le `curl.exe` livré avec Windows (build Schannel) ne propose que `http/1.1`. Avec un curl compilé avec HTTP/2, la même requête obtient `HTTP/2 200`.
 
 ### 2. Quatre en-têtes de réponse remarquables
 1. `Content-Type: application/json; charset=utf-8` : Indique au client le type MIME de la représentation ainsi que son encodage de caractères, lui permettant de savoir comment désérialiser le flux d'octets.
@@ -70,7 +71,9 @@ cmd /c 'curl -s -o NUL -w "%{http_code}\n" -H "If-None-Match: W/\"667e872bb2d616
   - **Autonomie de batterie :** L'activation des modules radio 4G/5G est brève et peu énergivore car aucun téléchargement lourd n'a lieu.
   - **Fluidité / Réactivité :** Réponse quasi instantanée pour l'utilisateur.
 - **Pour le quota GitHub :**
-  - Les requêtes conditionnelles répondant `304 Not Modified` évitent d'impacter le quota classique des requêtes complètes, préservant la bande passante et la charge serveur de l'infrastructure GitHub.
+  - D'après la documentation GitHub, une réponse `304 Not Modified` n'est **pas décomptée** du quota principal, **à condition que la requête soit authentifiée** (en-tête `Authorization`).
+  - **Vérifié en non authentifié :** trois requêtes conditionnelles successives ont toutes répondu `304`, et `X-RateLimit-Remaining` est passé de 55 à 54 puis à 53. Sans jeton, le `304` consomme donc bien le quota.
+  - Même sans jeton, le `304` reste utile : il économise la bande passante (aucun corps transféré) et la charge de sérialisation côté serveur.
 
 ---
 
@@ -78,11 +81,11 @@ cmd /c 'curl -s -o NUL -w "%{http_code}\n" -H "If-None-Match: W/\"667e872bb2d616
 
 ### 1. Tableau comparatif des réponses d'erreur
 
-| API | Requête | Code statut | Format du corps | Information utile pour corriger |
-| :--- | :--- | :--- | :--- | :--- |
-| **GitHub** | `GET /repos/nodejs/ce-depot-n-existe-pas` | `404 Not Found` | JSON (`message`, `documentation_url`, `status`) | Fournit le lien vers la documentation de l'endpoint pour vérifier l'URI et les permissions. |
-| **GitHub** | `DELETE /repos/nodejs/node` | `401 Unauthorized` | JSON (`message`, `documentation_url`, `status`) | Indique explicitement que l'action requiert une authentification préalable (`"Requires authentication"`). |
-| **geo.api.gouv.fr** | `GET /communes?codePostal=abc` | `200 OK` | JSON (tableau vide `[]`) | **Aucune.** Répond avec un statut de succès, masquant l'erreur de formatage du client. |
+| API | Requête | Code statut | Classe | Format du corps | Information utile pour corriger |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **GitHub** | `GET /repos/nodejs/ce-depot-n-existe-pas` | `404 Not Found` | 4xx, erreur client | JSON (`message`, `documentation_url`, `status`) | Fournit le lien vers la documentation de l'endpoint pour vérifier l'URI et les permissions. |
+| **GitHub** | `DELETE /repos/nodejs/node` | `401 Unauthorized` | 4xx, erreur client | JSON (`message`, `documentation_url`, `status`) | Indique explicitement que l'action requiert une authentification préalable (`"Requires authentication"`). |
+| **geo.api.gouv.fr** | `GET /communes?codePostal=abc` | `200 OK` | 2xx (devrait être 4xx) | JSON (tableau vide `[]`) | **Aucune.** Répond avec un statut de succès, masquant l'erreur de formatage du client. |
 
 ### 2. Erreur ne respectant pas la sémantique HTTP
 - **L'anomalie :** `geo.api.gouv.fr` renvoyant `200 OK` avec `[]`.
@@ -113,9 +116,9 @@ Content-Type: application/problem+json
 }
 ```
 
-> **Point de contrôle 2 validé :**
-> - Les erreurs client (4xx) exigent une correction côté client avant rejeu.
-> - Les erreurs serveur (5xx) indiquent un incident serveur temporaire, rejouable plus tard.
+> **Point de contrôle 2 :**
+> - Les trois erreurs observées sont des erreurs client (4xx, ou 2xx à tort) : la requête doit être corrigée avant d'être rejouée.
+> - Aucune erreur serveur (5xx) n'a été observée. Un `500`, `502` ou `503` signalerait un incident côté serveur, que le client peut rejouer plus tard sans rien changer (en respectant `Retry-After` s'il est présent).
 > - La réécriture suit scrupuleusement la RFC 9457 (`type`, `title`, `status`, `detail`, `instance`).
 
 ---
@@ -166,15 +169,18 @@ L'échelle de Richardson mesure le degré d'adhésion d'une API aux principes du
 
 ### Classement des API étudiées
 
-1. **GitHub REST API — Niveau 2 (avec éléments précurseurs du niveau 3) :**
-   - *Justification :* GitHub utilise des URI de ressources propres (`/repos/{owner}/{repo}`), l'ensemble des verbes HTTP (GET, POST, PATCH, DELETE) et des codes de statut précis (200, 201, 204, 304, 401, 404). Elle utilise l'en-tête `Link` pour la pagination (prémisse de niveau 3), mais n'expose pas un moteur d'hypermédia complet dans l'ensemble de ses ressources pour piloter les transitions d'état métier.
-2. **geo.api.gouv.fr — Niveau 1 :**
-   - *Justification :* Les entités sont bien adressées par des URI distinctes (`/communes`, `/departements`), mais l'API est en lecture seule (GET uniquement), n'exploite pas la diversité des verbes HTTP, et s'écarte de la sémantique des statuts d'erreur en renvoyant `200 OK` avec un tableau vide lors d'un paramètre erroné.
-3. **Stripe API — Niveau 2 (très haute maturité) :**
-   - *Justification :* Architecture axée sur des ressources claires (`/v1/customers`, `/v1/charges`), utilisation complète des méthodes (POST pour créer, DELETE pour supprimer une carte), statuts HTTP stricts, mise en place native de la réentrance et de l'idempotence via l'en-tête `Idempotency-Key`.
+1. **GitHub REST API — Niveau 2, avec des éléments de niveau 3 :**
+   - *Requêtes observées :* `GET /repos/nodejs/node` → `200` avec `ETag`, puis `304` avec `If-None-Match` ; `DELETE /repos/nodejs/node` sans jeton → `401` (la méthode DELETE est reconnue sur la même URI) ; `GET /repos/nodejs/ce-depot-n-existe-pas` → `404`.
+   - *Justification :* une URI par ressource, la méthode porte l'intention et le statut porte le résultat : c'est le niveau 2. Des éléments de niveau 3 existent : le corps de `GET /repos/nodejs/node` contient des liens vers les ressources liées (`issues_url`, `pulls_url`, `contributors_url`…), et la pagination passe par l'en-tête `Link` (`rel="next"`). Il ne s'agit pas d'un vrai HATEOAS : les liens ne dépendent pas de l'état et n'annoncent pas les actions possibles.
+2. **geo.api.gouv.fr — Niveau 2 en lecture, avec un écart :**
+   - *Requêtes observées :* `GET /communes/00000` → `404 Not Found` ; `GET /communes?codePostal=abc` → `200 OK` avec `[]`.
+   - *Justification :* les ressources ont des URI distinctes (`/communes`, `/departements`, `/communes/{code}`), et le `GET` est utilisé à bon escient avec un vrai `404` pour une ressource inexistante. Être en lecture seule n'empêche pas le niveau 2 : il n'y a simplement pas d'autre méthode à exposer. Seul écart, le `200 []` sur un filtre invalide, qui aurait dû être un `400` ou un `422` (étape 3).
+3. **Stripe API — Niveau 2 :**
+   - *Requêtes observées :* `GET https://api.stripe.com/v1/customers` sans clé → `401` avec un corps JSON `{"error": {"type": "invalid_request_error", "message": "You did not provide an API key..."}}` ; `DELETE /v1/customers/cus_x` sans clé → `401`.
+   - *Justification :* URI versionnées par ressource (`/v1/customers`, `/v1/charges`), statuts HTTP significatifs et erreurs structurées. Nuance : Stripe modifie ses ressources en `POST /v1/customers/{id}` et non en `PATCH`, un écart assumé par rapport à la sémantique HTTP. Stripe gère aussi l'idempotence des créations via l'en-tête `Idempotency-Key`, que nous reprenons pour `POST /v1/orders`.
 
-> **Point de contrôle 3 validé :**  
-> Chaque classement repose sur une observation concrète de requêtes réelles.
+> **Point de contrôle 3 :**  
+> Chaque classement s'appuie sur des requêtes réellement exécutées (URI, méthode et statut cités ci-dessus).
 
 ---
 
@@ -215,9 +221,11 @@ Exemple de représentation d'une commande selon son état (`pending` vs `paid`) 
 *Le lien `payment` a disparu dynamiquement car la commande est déjà payée ; les liens vers les billets et la facture sont devenus disponibles.*
 
 ### 2. Comparaison avec les *RESTful API Guidelines* de Zalando
-Deux règles notables :
-- **Règle #136 : Pluralize Resource Names** : Toutes les collections doivent porter des noms au pluriel (`/v1/events`, `/v1/orders`).
-- **Règle #176 : Use RFC 9457 for Error Formats** : Toutes les erreurs d'API doivent être modélisées avec le Content-Type `application/problem+json`.
+Deux règles qu'Orbitale **ne respecte pas encore** :
+- **Règle #115 — MUST not use URL versioning :** Zalando interdit la version dans l'URI et recommande le versionnage par type de média (#114, ex. `Accept: application/x.orbitale.event+json;version=1`). Orbitale utilise `/v1/...`, comme l'exige le cours. C'est un choix assumé : il rend la version visible et facile à router, au prix d'URI qui changent à chaque version majeure.
+- **Règle #118 — MUST property names must be snake_case (and never camelCase) :** Orbitale utilise le camelCase (`startsAt`, `totalAmount`, `buyerEmail`). Pour se conformer, il faudrait écrire `starts_at`, `total_amount`, `buyer_email`.
+
+Règles déjà respectées : #134 (noms de ressources au pluriel) et #176 (erreurs en `application/problem+json`).
 
 ### 3. Requête GraphQL équivalente et impact sur le cache HTTP
 **Requête GraphQL :**
